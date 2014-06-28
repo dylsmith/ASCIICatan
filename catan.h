@@ -3,15 +3,14 @@
 
 #include<iostream>
 #include<curses.h>
-#include<iostream>
 #include<fstream>
 #include<vector>
 #include<sstream>
 #include<algorithm>
-#include<ctime>
 
 using namespace std;
 
+//Globals
 int localPlayerNum = 0;
 
 //Player stats.
