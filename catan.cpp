@@ -1,3 +1,4 @@
+#include "tile.h"
 #include "catan.h"
 #include "UI.h"
 
@@ -200,7 +201,9 @@ int main()
   init_pair(6, COLOR_CYAN,   COLOR_BLACK);
   init_pair(7, COLOR_WHITE,  COLOR_BLACK);
 
-  vector<coord> tiles = buildTileWindows(); //Associate each tile with a coordinate
+  c->tiles = new vector<Tile*>;
+  vector<coord> tileLocs = buildTileWindows(); //Associate each tile with a coordinate
+  
   drawGame();                   //Draw the game elements
   c->drawPlayerBox();
   RandTile rt;                  //Generate the random resource set and the ordered chip set
@@ -212,7 +215,10 @@ int main()
     if(resource == "")          //Except the desert!  Fuck the desert.
       continue;
     string value = ov.pop();
-    fillTile(tiles[tilePlaceOrder[tileOrder][i]], value, resource); //Fill each tile with its stuff
+    Tile* t = new Tile(&tileLocs[i],value,resource);
+    c->tiles->push_back(t);
+    printTile(t);
+    //fillTile(tiles[tilePlaceOrder[tileOrder][i]], value, resource); //Fill each tile with its stuff
   }
 
   c->playGame();

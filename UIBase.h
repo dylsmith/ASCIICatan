@@ -34,6 +34,26 @@ void move(coord c)  //Move to coordinate
   move(c.y, c.x);
 }
 
+void move(coord* c)  //Move to coordinate
+{
+  move(c->y, c->x);
+}
+class Tile
+{
+public:
+  coord* offset;
+  coord* adjacent;
+  string value;
+  string resource;
+
+  Tile(coord* offsetVal, string valueVal, string resourceVal)
+  {
+    offset = offsetVal;
+    value = valueVal;
+    resource = resourceVal;
+  }
+};
+
 //UI Constants
 const int numResource[5] = {3, 3, 4, 4, 4}; // The number of brick, ore, sheep, wheat, wood to create
 const string resourceName[5] = {"Brick", "Ore", "Sheep", "Wheat", "Wood"};  //The names of the resources (<= 5 chars pls)
@@ -142,30 +162,31 @@ int color(string c)
     return COLOR_PAIR(5);
 }
 
+
 //Takes tile coordinates, a weight, and a resource name, and prints it nicely
-void fillTile(coord tile, string val, string resource)
+void printTile(Tile* tile)
 {
-  move(tile);
-  if(resource.length() <= 6)
+  move(tile->offset);
+  if(tile->resource.length() <= 6)
   {
-    attron(color(resource));  //Print the resource in its color :D
-    addstr(center(resource));
-    attroff(color(resource));
-    move(tile += 2);
+    attron(color(tile->resource));  //Print the resource in its color :D
+    addstr(center(tile->resource));
+    attroff(color(tile->resource));
+    move(tile->offset->y + 2, tile->offset->x);
 
     attron(A_BOLD);
-    addstr(center(val));
-    move(tile += 1);
+    addstr(center(tile->value));
+    move(tile->offset->y + 3, tile->offset->x);
     
-    if(val == "2" || val == "12") //Print the handy-dandy little dots, red if necessary
+    if(tile->value == "2" || tile->value == "12") //Print the handy-dandy little dots, red if necessary
       addstr(center("."));
-    else if(val == "3" || val == "11")
+    else if(tile->value == "3" || tile->value == "11")
       addstr(center(".."));
-    else if(val == "4" || val == "10")
+    else if(tile->value == "4" || tile->value == "10")
       addstr(center("..."));
-    else if(val == "5" || val == "9")
+    else if(tile->value == "5" || tile->value == "9")
       addstr(center("...."));
-    else if(val == "6" || val == "8")
+    else if(tile->value == "6" || tile->value == "8")
     {
       attron(color("red"));
       addstr(center("....."));

@@ -7,7 +7,6 @@
 #include<vector>
 #include<sstream>
 #include<algorithm>
-
 using namespace std;
 
 //Globals
@@ -38,6 +37,8 @@ public:
   Player();
 };
 
+class Tile;
+
 class CatanGame
 {
 public:
@@ -48,6 +49,7 @@ public:
   int turn;
 
   CatanGame();
+  vector<Tile*>* tiles;
   int getActivePlayer();
   void nextTurn();
   void drawPlayerBox();
