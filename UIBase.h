@@ -103,10 +103,12 @@ const char* center(string s, int len = 5)
   return s.c_str();
 }
 
-void testPrint(string s)  //Temp, prints to top left
+void testPrint(string s, int i = 1)  //Temp, prints to top left
 {
   attron(A_BOLD);
-  move(1,0);
+  move(i,0);
+  addstr("                   ");
+  move(i,0);
   addstr(s.c_str());
   attroff(A_BOLD);
   refresh();

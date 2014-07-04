@@ -5,9 +5,16 @@
 
 //GLOBALS
 CatanGame* c;
-bool localGame = true;
+string host = "localhost";
+bool isHost = false;
+string name = "Kalrax";
+int port = 11232;
+int socketNum;
+bool localGame = false;
 int playerBoxWidth = 15;
 const int numClickableElements = 14; //Number of interactive UI elements
+
+void sendstr(string s);
 
 void printToConfirmBox(string s)
 {
@@ -21,6 +28,22 @@ void printToTradeBox(string s)
   move(tradeBoxLoc.y + 2, tradeBoxLoc.x + 1);
   s = center(s,45);
   addstr(s.c_str());
+}
+
+void updateTradeResource(int resource, int value, bool localPlayer)
+{
+  int xloc = 6;
+  if(!localPlayer)
+    xloc = 29;
+  
+  if(value < 10)
+  {
+    move(tradeBoxLoc.y + 7 + resource, tradeBoxLoc.x + xloc);
+  }
+  else
+    move(tradeBoxLoc.y + 7 + resource, tradeBoxLoc.x + xloc - 1);
+
+  addstr(SSTR(value).c_str()); 
 }
 
 void engageTrade(int target)
@@ -104,7 +127,8 @@ void UseDevCardClicked(int y, int x)
 }
 void EndTurnYes()
 {
-  c->nextTurn();
+  sendstr("E");
+  //c->nextTurn();
   //broadcast("NextTurn");
 }
 void EndTurnClicked(int y, int x)

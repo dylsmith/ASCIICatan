@@ -7,10 +7,12 @@
 #include<vector>
 #include<sstream>
 #include<algorithm>
-using namespace std;
+int TEMP = 0;
 
+using namespace std;
+class Message;
 //Globals
-int localPlayerNum = 0;
+int localPlayerNum = -1;
 
 //Player stats.
 class Player
@@ -43,7 +45,6 @@ class CatanGame
 {
 public:
   int numPlayers;
-  bool end;
   Player* player;
   int resourceCount[5];
   int turn;

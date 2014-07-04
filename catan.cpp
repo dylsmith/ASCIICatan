@@ -1,5 +1,6 @@
 #include "catan.h"
 #include "UI.h"
+#include "comms.h"
 
 //Draw each UI element
 void drawGame()
@@ -25,19 +26,20 @@ int Player::getResourceCount(int resource)
 
 int Player::setResourceCount(int resource, int amount)
 {
-  total += amount - resources[resource];
-  resources[resource] = amount;
-  move(resourceLoc.y + resource, resourceLoc.x);
+  c->resourceCount[resource] += resources[resource] - amount;  //The bank loses this many of that resource. -1 * number being added
+  total += amount - resources[resource];  //Update player total
+  resources[resource] = amount; //Set the amount
+  move(resourceLoc.y + resource, resourceLoc.x);  //Move to where we're going to write 
 
   string out = "";
-  if(amount < 10)
+  if(amount < 10) //if it's a single number, print it right-justified
     out += " " + SSTR(amount);
   else
     out += SSTR(amount);
   addstr(out.c_str());
   move(resourceLoc.y + 6, resourceLoc.x);
   out = "";
-  if(total < 10)
+  if(total < 10)  //If it's double-digit, don't add that space
     out += " " + SSTR(total);
   else
     out += SSTR(total);
@@ -53,28 +55,24 @@ int Player::addResource(int resource, int amount)
 
 Player::Player()
 {
-  total = 0;
+  total = 0;    //0 resources, 0 VPs, not trading with anyone, not waiting to confirm something, clicking yes will do nothing...
   VPs = 0;
   tradingWith = -1;
   confirmBoxWaiting = false;
   YesAction = DoNothing;
   for(int i = 0; i < 5; i++)
-  {
     resources[i] = 0;
-
-    //setResourceCount(i, 0);
-  }
 }
 
 CatanGame::CatanGame()
 {
   numPlayers = 0;
-  end = false;
-  for(int i = 0; i < 5; i++) resourceCount[i] = 19;
-  turn = 0;
+  for(int i = 0; i < 5; i++) 
+    resourceCount[i] = 19;
+  turn = -1;
 }
 
-int CatanGame::getActivePlayer()
+int CatanGame::getActivePlayer()  //Returns the player who has the screen.  For online games this is always the same player, but changes locally.
 {
   if(localGame)
     return turn;
@@ -84,32 +82,43 @@ int CatanGame::getActivePlayer()
 
 void CatanGame::nextTurn()
 {
-  turn++;
-  if(turn >= numPlayers)
+  turn++; //Increment the turn counter
+  if(turn >= numPlayers)  //Go back to 0 if we've let everyone go
     turn = 0;
-  testPrint(SSTR(turn) + "        ");
 
-  if(!localGame)
-    if(turn == c->getActivePlayer())
+  if(!localGame)  //If this game is online
+    if(turn == c->getActivePlayer())  //Draw the done box for whoever's turn it is
       drawElement("res/donebox",doneBoxLoc);
-    else
+    else  //And clear it for everyone else
       drawElement("res/nodonebox",doneBoxLoc);
-  c->drawPlayerBox();
+  c->drawPlayerBox(); //And update the player box
 }
 
+void endGame()
+{
+  curs_set(1);  //make the cursor visible again
+  endwin();     //close the ncurses window
+  clear();      //and clear it?? (idk, but it works so i'm not gonna fuck with it)
+  if(isHost)  //Close all ports
+    for(list<int>::iterator it = clientList->begin(); it != clientList->end(); it++)
+      close(*it);
+  else
+    close(socketNum);
+  exit(0);
+}
 
 void CatanGame::drawPlayerBox()
 {
-  for(int i = 0; i < numPlayers; i++)
+  for(int i = 0; i < numPlayers; i++) //For every player
   {
-    if(i == turn)
-    {
+    if(i == turn) //If it's their turn, highlight them
       attron(A_STANDOUT);
-    }
-    move(playerBoxLoc.y + 3*i + 3, playerBoxLoc.x);
+
+    move(playerBoxLoc.y + 3*i + 3, playerBoxLoc.x); //Write the player's name, centered
     addstr(center(player[i].name,playerBoxWidth));
-    move(playerBoxLoc.y + 3*i + 4, playerBoxLoc.x);
-    string s = SSTR(player[i].total);
+    move(playerBoxLoc.y + 3*i + 4, playerBoxLoc.x); //And move to the line below it
+    string s = SSTR(player[i].total); //string s will be <numcards> <Card/Cards>/<numVPs> <VP/VPs>
+
     if(player[i].total == 1)
       s += " Card";
     else
@@ -125,19 +134,34 @@ void CatanGame::drawPlayerBox()
     attroff(A_STANDOUT);
   }
   move(playerBoxLoc.y + 3*numPlayers + 3,playerBoxLoc.x);
-  addstr(center("(click to trade)",playerBoxWidth));
+  addstr(center("(click to trade)",playerBoxWidth));  //Draw the (click to trade) text after all the players
+}
+
+void handleMessage(Message m) //Handles every message broadcasted, for every player.
+{
+  if(m.msg[0] == 'N') //N == playername being broadcasted
+  {
+    c->player[m.sender].name = m.msg.substr(1, m.msg.length() - 1); //Extract playername
+    c->drawPlayerBox(); //And redraw the player box
+  }
+  else if(m.msg[0] == 'E')  //E == End turn
+    c->nextTurn();  //Goto next turn
+  else if(m.msg[0] == 'P')
+    localPlayerNum = m.msg[1];
+  testPrint("               ");
+  testPrint("Got " + m.msg);
 }
 
 void CatanGame::playGame()
 {
   MEVENT event;
   timeout(0);
-  while(!end) //Forever.
+  while(1) //Forever.
   {
     int ch = wgetch(stdscr);  //Get input.
     if(ch == '=')             //End the game on =
-      end = true;
-    if(ch == KEY_MOUSE) 
+      endGame();
+    else if(ch == KEY_MOUSE) 
     {
       if(getmouse(&event) == OK)  
       {
@@ -151,7 +175,27 @@ void CatanGame::playGame()
         }
       }
     }
-    //Get network input here  
+    if(!sendBuffer->empty())  //If things are queued to send, send one
+      trysend();
+
+    getMessage(); //And try to get something to add to the received queue
+    if(!recvBuffer->empty())  //If there are things in the received queue
+    {
+      //testPrint(SSTR(recvBuffer->size()), 6);
+      Message m = recvBuffer->front();  //Get the first
+      recvBuffer->pop_front();  //And remove it
+      if(m.msg == "CLOSED") //CLOSED == either the host has left or all clients have left.  game over.
+      {
+        testPrint("         CLOSED");
+        endGame();
+      }
+      else
+      {
+        if(isHost)  //The host gets every message, so he should send anything he gets to the rest
+          broadcastMessage(m);
+        handleMessage(m); //And everyone processes every message
+      }
+    }
   }
 }
 
@@ -159,18 +203,51 @@ int main()
 {
   //Initial setup
   c = new CatanGame();
+  c->numPlayers = 2;
   while(c->numPlayers < 1 || c->numPlayers > 4)
   {
     cout << "How many players? (1-4): ";
     cin >> c->numPlayers;
   }
   c->player = new Player[c->numPlayers];
-  for(int i = 0; i < c->numPlayers; i++)
+
+  if(localGame)
   {
-    cout << "Enter player " << i << "'s name: ";
-    cin >> c->player[i].name;
+    for(int i = 0; i < c->numPlayers; i++)
+    {
+      cout << "Enter player " << i << "'s name: ";
+      cin >> c->player[i].name;
+    }
   }
-  
+  else
+  {
+    //We get player names from the internets
+  }
+
+  string temp;
+  cout << "Hosting? "; //read from a file pls
+  cin >> temp;
+  if(temp == "y")
+  {
+    isHost = true;
+  }
+  if(isHost) 
+  {
+    localPlayerNum = 0;
+    int n = getClients(c->numPlayers - 1);
+    if(n == -1)
+      return 0;
+  }
+  else
+  {
+    localPlayerNum = 1;
+    socketNum = connectToHost();
+    if(socketNum == -1)
+      return 0;
+  }
+  sendstr("N" + name + " " + SSTR(localPlayerNum));
+  if(isHost)
+    sendstr("E");
   initscr();  //Start the ncurses screen
   int y, x;   //Get the size of the term for debugging
   getmaxyx(stdscr, y, x);
@@ -219,13 +296,13 @@ int main()
     printTile(t);
     //fillTile(tiles[tilePlaceOrder[tileOrder][i]], value, resource); //Fill each tile with its stuff
   }
-
+  
   c->playGame();
 
 
   //Cleanup:
-  curs_set(1);  //Make the cursor visible again
-  endwin();     //Close the ncurses window
-  clear();      //And clear it?? (idk, but it works so I'm not gonna fuck with it)
+  curs_set(1);  //make the cursor visible again
+  endwin();     //close the ncurses window
+  clear();      //and clear it?? (idk, but it works so i'm not gonna fuck with it)
   return 0;     //Aaaand, done.
 }
