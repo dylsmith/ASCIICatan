@@ -137,21 +137,64 @@ void CatanGame::drawPlayerBox()
   addstr(center("(click to trade)",playerBoxWidth));  //Draw the (click to trade) text after all the players
 }
 
-void handleMessage(Message m) //Handles every message broadcasted, for every player.
+void handleMessage(Message* m) //Handles every message broadcasted, for every player.
 {
-  if(m.msg[0] == 'N') //N == playername being broadcasted
+  char ch;
+  string s;
+  switch(m->type)
   {
-    c->player[m.sender].name = m.msg.substr(1, m.msg.length() - 1); //Extract playername
+    case SOCKCLOSED:
+      endGame();
+      break;
+
+    case PLAYERNUMBER:
+      localPlayerNum = m->msg[0];
+      //testPrint("num is " + SSTR(localPlayerNum));
+      s = SSTR(localPlayerNum) + name + " " + SSTR(localPlayerNum);
+      sendstr(PLAYERNAME, s);
+      break;
+
+    case REQUESTPLAYERNAME:
+      sendstr(PLAYERNAME, name);
+      break;
+
+    case PLAYERNAME:
+      ch = m->msg[0] - 48;
+      s = m->msg.substr(1,m->length - 1);
+      c->player[ch].name = s;
+      c->drawPlayerBox();
+      //testPrint(SSTR(ch) + " : " + c->player[ch].name, 30);
+      break;
+  
+    case ENDTURN:
+      testPrint("ENDING",4);
+      c->nextTurn();
+      break;
+
+    case TEST:
+      testPrint("Got " + m->msg);
+  }
+  /*
+  if(m.type == SOCKCLOSED)
+  {
+    endGame();
+  }
+  else if(m.msg[0] == 'N') //N == playername being broadcasted
+  {
+    c->player[m.msg[2]].name = m.msg.substr(3, m.msg.length); //Extract playername
     c->drawPlayerBox(); //And redraw the player box
   }
   else if(m.msg[0] == 'E')  //E == End turn
     c->nextTurn();  //Goto next turn
   else if(m.msg[0] == 'P')
+  {
     localPlayerNum = m.msg[1];
+    testPrint("I am player " + m.msg[1], 10);
+  }
   testPrint("               ");
-  testPrint("Got " + m.msg);
+  testPrint("Got " + m.msg);*/
 }
-
+bool firstLoop = true;
 void CatanGame::playGame()
 {
   MEVENT event;
@@ -172,29 +215,19 @@ void CatanGame::playGame()
           addstr(s.c_str());
           refresh();
           handleClick(event.y, event.x);  //And handle the click
+          sendstr(TEST, SSTR(event.y) + " " + SSTR(event.x));
         }
       }
     }
-    if(!sendBuffer->empty())  //If things are queued to send, send one
-      trysend();
 
-    getMessage(); //And try to get something to add to the received queue
-    if(!recvBuffer->empty())  //If there are things in the received queue
+    trysend();
+    Message* m = getMessage(); //And try to get something to add to the received queue
+    //testPrint(SSTR(recvBuffer->size()), 6);
+    if(m)
     {
-      //testPrint(SSTR(recvBuffer->size()), 6);
-      Message m = recvBuffer->front();  //Get the first
-      recvBuffer->pop_front();  //And remove it
-      if(m.msg == "CLOSED") //CLOSED == either the host has left or all clients have left.  game over.
-      {
-        testPrint("         CLOSED");
-        endGame();
-      }
-      else
-      {
-        if(isHost)  //The host gets every message, so he should send anything he gets to the rest
-          broadcastMessage(m);
-        handleMessage(m); //And everyone processes every message
-      }
+      if(isHost)
+        broadcastMessage(m);
+      handleMessage(m);
     }
   }
 }
@@ -203,7 +236,7 @@ int main()
 {
   //Initial setup
   c = new CatanGame();
-  c->numPlayers = 2;
+  c->numPlayers = 3;
   while(c->numPlayers < 1 || c->numPlayers > 4)
   {
     cout << "How many players? (1-4): ";
@@ -221,6 +254,8 @@ int main()
   }
   else
   {
+    //cout << "Player num: ";
+    //cin >> localPlayerNum;
     //We get player names from the internets
   }
 
@@ -237,6 +272,18 @@ int main()
     int n = getClients(c->numPlayers - 1);
     if(n == -1)
       return 0;
+    
+    char i = 0;
+    //Distribute player numbers here somehow
+    for(list<int>::iterator it = clientList->begin(); it != clientList->end(); it++)
+    {
+      i++;
+      Message m(PLAYERNUMBER, SSTR(i));
+      write(*it, m.tochars(), m.length + 2);
+    }
+    string s = SSTR(localPlayerNum) + name + " " + SSTR(localPlayerNum);
+    sendstr(PLAYERNAME, s);
+    sendstr(ENDTURN);
   }
   else
   {
@@ -245,9 +292,11 @@ int main()
     if(socketNum == -1)
       return 0;
   }
-  sendstr("N" + name + " " + SSTR(localPlayerNum));
   if(isHost)
-    sendstr("E");
+  {
+    //sendstr("E");
+  }
+  //sendstr("NKalrax " + SSTR(localPlayerNum));
   initscr();  //Start the ncurses screen
   int y, x;   //Get the size of the term for debugging
   getmaxyx(stdscr, y, x);
@@ -294,7 +343,6 @@ int main()
     Tile* t = new Tile(&tileLocs[i],value,resource);
     c->tiles->push_back(t);
     printTile(t);
-    //fillTile(tiles[tilePlaceOrder[tileOrder][i]], value, resource); //Fill each tile with its stuff
   }
   
   c->playGame();

@@ -8,13 +8,22 @@ CatanGame* c;
 string host = "localhost";
 bool isHost = false;
 string name = "Kalrax";
-int port = 11232;
+int port = 11249;
 int socketNum;
 bool localGame = false;
 int playerBoxWidth = 15;
 const int numClickableElements = 14; //Number of interactive UI elements
 
-void sendstr(string s);
+//The first char of every string is its length (not incl. the first char).  The second is some constant defined here.  The third is the rest, if there is any.
+#define PLAYERNUMBER 'N' //<player number> assigns the recipient the given player number
+#define REQUESTPLAYERNAME 'R' //none, player responds with PLAYERNAME messge
+#define PLAYERNAME 'P' //<player number><player name>
+#define ENDTURN 'E' //none, switches to the next turn
+#define SOCKCLOSED 'C'//none, ends the game
+#define TEST 'T'
+
+void sendstr(char type);
+void sendstr(char type, string msg);
 
 void printToConfirmBox(string s)
 {
@@ -127,7 +136,7 @@ void UseDevCardClicked(int y, int x)
 }
 void EndTurnYes()
 {
-  sendstr("E");
+  sendstr(ENDTURN);
   //c->nextTurn();
   //broadcast("NextTurn");
 }
